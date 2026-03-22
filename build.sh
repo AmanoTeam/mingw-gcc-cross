@@ -14,16 +14,16 @@ declare -r revision="$(git rev-parse --short HEAD)"
 declare -r gcc_major='15'
 
 declare -r gmp_tarball='/tmp/gmp.tar.xz'
-declare -r gmp_directory='/tmp/gmp-6.3.0'
+declare -r gmp_directory='/tmp/gmp'
 
 declare -r mpfr_tarball='/tmp/mpfr.tar.xz'
-declare -r mpfr_directory='/tmp/mpfr-4.2.2'
+declare -r mpfr_directory='/tmp/mpfr-master'
 
 declare -r mpc_tarball='/tmp/mpc.tar.gz'
-declare -r mpc_directory='/tmp/mpc-1.3.1'
+declare -r mpc_directory='/tmp/mpc-master'
 
 declare -r isl_tarball='/tmp/isl.tar.xz'
-declare -r isl_directory='/tmp/isl-0.27'
+declare -r isl_directory='/tmp/isl-master'
 
 declare -r binutils_tarball='/tmp/binutils.tar.xz'
 declare -r binutils_directory='/tmp/binutils'
@@ -100,11 +100,12 @@ declare -r \
 
 if ! [ -f "${gmp_tarball}" ]; then
 	curl \
-		--url 'https://gnu.mirror.constant.com/gmp/gmp-6.3.0.tar.xz' \
+		--url 'https://github.com/AmanoTeam/gmplib-snapshots/releases/latest/download/gmp.tar.xz' \
 		--retry '30' \
 		--retry-all-errors \
 		--retry-delay '0' \
 		--retry-max-time '0' \
+		--show-error \
 		--location \
 		--silent \
 		--output "${gmp_tarball}"
@@ -119,11 +120,12 @@ fi
 
 if ! [ -f "${mpfr_tarball}" ]; then
 	curl \
-		--url 'https://gnu.mirror.constant.com/mpfr/mpfr-4.2.2.tar.xz' \
+		--url 'https://github.com/AmanoTeam/mpfr/archive/master.tar.gz' \
 		--retry '30' \
 		--retry-all-errors \
 		--retry-delay '0' \
 		--retry-max-time '0' \
+		--show-error \
 		--location \
 		--silent \
 		--output "${mpfr_tarball}"
@@ -133,16 +135,20 @@ if ! [ -f "${mpfr_tarball}" ]; then
 		--extract \
 		--file="${mpfr_tarball}"
 	
+	cd "${mpfr_directory}"
+	autoreconf --force --install
+	
 	patch --directory="${mpfr_directory}" --strip='1' --input="${workdir}/submodules/obggcc/patches/0001-Remove-hardcoded-RPATH-and-versioned-SONAME-from-libmpfr.patch"
 fi
 
 if ! [ -f "${mpc_tarball}" ]; then
 	curl \
-		--url 'https://gnu.mirror.constant.com/mpc/mpc-1.3.1.tar.gz' \
+		--url 'https://github.com/AmanoTeam/mpc/archive/master.tar.gz' \
 		--retry '30' \
 		--retry-all-errors \
 		--retry-delay '0' \
 		--retry-max-time '0' \
+		--show-error \
 		--location \
 		--silent \
 		--output "${mpc_tarball}"
@@ -152,16 +158,20 @@ if ! [ -f "${mpc_tarball}" ]; then
 		--extract \
 		--file="${mpc_tarball}"
 	
+	cd "${mpc_directory}"
+	autoreconf --force --install
+	
 	patch --directory="${mpc_directory}" --strip='1' --input="${workdir}/submodules/obggcc/patches/0001-Remove-hardcoded-RPATH-and-versioned-SONAME-from-libmpc.patch"
 fi
 
 if ! [ -f "${isl_tarball}" ]; then
 	curl \
-		--url 'https://deb.debian.org/debian/pool/main/i/isl/isl_0.27.orig.tar.xz' \
+		--url 'https://github.com/AmanoTeam/isl/archive/master.tar.gz' \
 		--retry '30' \
 		--retry-all-errors \
 		--retry-delay '0' \
 		--retry-max-time '0' \
+		--show-error \
 		--location \
 		--silent \
 		--output "${isl_tarball}"
@@ -170,6 +180,9 @@ if ! [ -f "${isl_tarball}" ]; then
 		--directory="$(dirname "${isl_directory}")" \
 		--extract \
 		--file="${isl_tarball}"
+	
+	cd "${isl_directory}"
+	autoreconf --force --install
 	
 	patch --directory="${isl_directory}" --strip='1' --input="${workdir}/submodules/obggcc/patches/0001-Remove-hardcoded-RPATH-and-versioned-SONAME-from-libisl.patch"
 	
@@ -324,7 +337,7 @@ if ! [ -f "${gcc_tarball}" ]; then
 	patch --directory="${gcc_directory}" --strip='1' --input="${workdir}/submodules/obggcc/patches/0007-Add-relative-RPATHs-to-GCC-host-tools.patch"
 	patch --directory="${gcc_directory}" --strip='1' --input="${workdir}/submodules/obggcc/patches/0001-Prevent-libstdc-from-trying-to-implement-math-stubs.patch"
 	
-	patch --directory="${gcc_directory}" --strip='1' --input="${workdir}/submodules/pino/patches/0001-Disable-SONAME-versioning-for-all-target-libraries.patch"
+	patch --directory="${gcc_directory}" --strip='1' --input="${workdir}/submodules/pino/patches/gcc-15/0001-Disable-SONAME-versioning-for-all-target-libraries.patch"
 fi
 
 # Follow Debian's approach to remove hardcoded RPATHs from binaries
@@ -554,6 +567,7 @@ for triplet in "${targets[@]}"; do
 		--enable-lto \
 		--enable-compressed-debug-sections='all' \
 		--enable-default-compressed-debug-sections-algorithm='zstd' \
+		--enable-leak-check \
 		--disable-gprofng \
 		--with-sysroot="${toolchain_directory}/${triplet}" \
 		--with-zstd="${toolchain_directory}" \
@@ -668,7 +682,7 @@ for triplet in "${targets[@]}"; do
 	make install
 	
 	echo >> "${toolchain_directory}/${triplet}/include/c++/${gcc_major}/${triplet}/bits/c++config.h"
-	cat "${workdir}/submodules/obggcc/patches/c++config.h" >> "${toolchain_directory}/${triplet}/include/c++/${gcc_major}/${triplet}/bits/c++config.h"
+	cat "${workdir}/patches/c++config.h" >> "${toolchain_directory}/${triplet}/include/c++/${gcc_major}/${triplet}/bits/c++config.h"
 	
 	rm "${toolchain_directory}/bin/${triplet}-${triplet}-"* || true
 	

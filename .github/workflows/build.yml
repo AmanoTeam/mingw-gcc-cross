@@ -118,13 +118,6 @@ jobs:
     - uses: actions/checkout@main
       with:
         submodules: true
-    - name: Free up some space
-      run: |
-        curl 'https://raw.githubusercontent.com/AmanoTeam/gha-free-space/refs/heads/master/main.sh' -sSf | bash 
-    - name: Install required dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install build-essential autoconf
     - name: Restore from cache
       uses: actions/cache@main
       with:
@@ -160,6 +153,8 @@ jobs:
             
             curl --connect-timeout '10' --retry '15' --retry-all-errors --fail --silent --location --url "${OBGGCC_URL}" --output "${OBGGCC_TARBALL}"
             tar --directory="$(dirname "${OBGGCC_TARBALL}")" --extract --file="${OBGGCC_TARBALL}"
+            
+            export OBGGCC_ARM_MODE='true'
             
             export OBGGCC_HOME='/tmp/obggcc'
             export PATH="${OBGGCC_HOME}/bin:${PATH}"
@@ -288,6 +283,6 @@ jobs:
           draft: false
           prerelease: false
           fail_on_unmatched_files: true
-          body: "* Update to GCC 15.2.1"
+          body: "* Update to GCC 15"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
