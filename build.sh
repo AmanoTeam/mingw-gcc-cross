@@ -545,7 +545,9 @@ for triplet in "${targets[@]}"; do
 	declare extra_configure_flags=''
 	
 	declare specs='%{!Qy: -Qn}'
+	
 	declare target="${triplet/-msvcrt/}"
+	target="${target/-ucrt/}"
 	
 	if ! (( is_native )); then
 		extra_configure_flags+=" --with-cross-host=${CROSS_COMPILE_TRIPLET}"
