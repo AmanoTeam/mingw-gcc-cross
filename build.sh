@@ -625,7 +625,7 @@ for triplet in "${targets[@]}"; do
 		--with-zstd="${toolchain_directory}" \
 		--with-system-zlib \
 		--with-gcc-major-version-only \
-		--with-sysroot="${toolchain_directory}/${triplet}" \
+		--with-sysroot="${toolchain_directory}/${target}" \
 		--with-native-system-header-dir='/include' \
 		--with-default-libstdcxx-abi='new' \
 		--includedir="${toolchain_directory}/${triplet}/include" \
