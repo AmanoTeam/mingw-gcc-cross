@@ -50,10 +50,10 @@ declare -r linkflags='-Xlinker -s'
 
 declare -ra targets=(
 	# 'aarch64-w64-mingw32'
-	'x86_64-w64-mingw32ucrt'
-	'x86_64-w64-mingw32msvcrt'
-	'i686-w64-mingw32ucrt'
-	'i686-w64-mingw32msvcrt'
+	'x86_64-w64-mingw32-ucrt'
+	'x86_64-w64-mingw32-msvcrt'
+	'i686-w64-mingw32-ucrt'
+	'i686-w64-mingw32-msvcrt'
 )
 
 declare -r PKG_CONFIG_PATH="${toolchain_directory}/lib/pkgconfig"

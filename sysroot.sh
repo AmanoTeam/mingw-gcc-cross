@@ -2,7 +2,7 @@
 
 set -eu
 
-declare -r sysroot_directory="/tmp/${CROSS_COMPILE_TRIPLET}${CRTDLL}"
+declare -r sysroot_directory="/tmp/${CROSS_COMPILE_TRIPLET}-${CRTDLL}"
 
 declare extra_flags=''
 
