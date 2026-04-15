@@ -1,0 +1,55 @@
+From 9feba2f40432683db16028eb49cb3a2e96a46c1e Mon Sep 17 00:00:00 2001
+From: Kartatz <105828205+Kartatz@users.noreply.github.com>
+Date: Thu, 16 Apr 2026 02:15:47 +0000
+Subject: [PATCH] Unify <bits/c++config.h> for MSVCRT and UCRT
+
+---
+ bits/c++config.h | 18 +++++++++++++++---
+ 1 file changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/bits/c++config.h b/bits/c++config.h
+index 2e3b2da..586c474 100644
+--- a/bits/c++config.h
++++ b/bits/c++config.h
+@@ -996,7 +996,11 @@ namespace __gnu_cxx
+ #define _GLIBCXX_HAVE_ATOMIC_LOCK_POLICY 1
+ 
+ /* Define to 1 if you have the `at_quick_exit' function. */
+-#define _GLIBCXX_HAVE_AT_QUICK_EXIT 1
++#if defined(_UCRT)
++    #define _GLIBCXX_HAVE_AT_QUICK_EXIT 1
++#else
++    #undef _GLIBCXX_HAVE_AT_QUICK_EXIT
++#endif
+ 
+ /* Define if C99 float_t and double_t in <math.h> should be imported in
+    <cmath> in namespace std for C++11. */
+@@ -1284,7 +1288,11 @@ namespace __gnu_cxx
+ /* #undef _GLIBCXX_HAVE_QFPCLASS */
+ 
+ /* Define to 1 if you have the `quick_exit' function. */
+-#define _GLIBCXX_HAVE_QUICK_EXIT 1
++#if defined(_UCRT)
++    #define _GLIBCXX_HAVE_QUICK_EXIT 1
++#else
++    #undef _GLIBCXX_HAVE_QUICK_EXIT
++#endif
+ 
+ /* Define if readlink is available in <unistd.h>. */
+ /* #undef _GLIBCXX_HAVE_READLINK */
+@@ -1671,7 +1679,11 @@ namespace __gnu_cxx
+ 
+ /* Define if C11 functions in <uchar.h> should be imported into namespace std
+    in <cuchar>. */
+-#define _GLIBCXX_USE_C11_UCHAR_CXX11 1
++#if defined(_UCRT)
++    #define _GLIBCXX_USE_C11_UCHAR_CXX11 1
++#else
++    #undef _GLIBCXX_USE_C11_UCHAR_CXX11
++#endif
+ 
+ /* Define if C99 functions or macros from <wchar.h>, <math.h>, <complex.h>,
+    <stdio.h>, and <stdlib.h> can be used or exposed. */
+-- 
+2.53.0
+

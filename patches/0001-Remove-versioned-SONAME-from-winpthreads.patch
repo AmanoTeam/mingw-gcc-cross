@@ -1,0 +1,25 @@
+From d4711664974ab9bbd51cac8ebac56463cf4d6740 Mon Sep 17 00:00:00 2001
+From: Kartatz <105828205+Kartatz@users.noreply.github.com>
+Date: Sat, 18 Apr 2026 04:39:31 +0200
+Subject: [PATCH] Remove versioned SONAME from winpthreads
+
+---
+ mingw-w64-libraries/winpthreads/Makefile.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mingw-w64-libraries/winpthreads/Makefile.in b/mingw-w64-libraries/winpthreads/Makefile.in
+index 156b19b45..326cee3a2 100644
+--- a/mingw-w64-libraries/winpthreads/Makefile.in
++++ b/mingw-w64-libraries/winpthreads/Makefile.in
+@@ -494,7 +494,7 @@ libwinpthread_la_SOURCES = \
+ 
+ libwinpthread_la_CPPFLAGS = -I$(srcdir)/include -DIN_WINPTHREAD \
+ 	$(am__append_2) $(am__append_4)
+-libwinpthread_la_LDFLAGS = -no-undefined -version-info 1:0:0 \
++libwinpthread_la_LDFLAGS = -no-undefined -avoid-version \
+ 	$(am__append_5)
+ @MSVC_FALSE@EXTRA_libwinpthread_la_DEPENDENCIES = fakelib/libgcc.a  fakelib/libgcc_eh.a  fakelib/libgcc_s.a
+ 
+-- 
+2.53.0
+

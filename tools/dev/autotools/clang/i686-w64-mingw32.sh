@@ -6,7 +6,7 @@ set +u
 set -e
 
 if [ -z "${MINGW_HOME}" ]; then
-	MINGW_HOME="$(realpath "$(( [ -n "${BASH_SOURCE}" ] && dirname "$(realpath "${BASH_SOURCE[0]}")" ) || dirname "$(realpath "${0}")")""/../../../../..")"
+	MINGW_HOME="$(realpath "$(( [ -n "${BASH_SOURCE}" ] && dirname "$(realpath "${BASH_SOURCE[0]}")" ) || dirname "$(realpath "${0}")")""/../../../../../..")"
 fi
 
 set -u
@@ -14,12 +14,12 @@ set -u
 CROSS_COMPILE_TRIPLET='i686-w64-mingw32'
 CROSS_COMPILE_SYSTEM='windows'
 CROSS_COMPILE_ARCHITECTURE='i686'
-CROSS_COMPILE_SYSROOT="${MINGW_HOME}/${CROSS_COMPILE_TRIPLET}"
+CROSS_COMPILE_SYSROOT="${MINGW_HOME}/${CROSS_COMPILE_TRIPLET}-msvcrt"
 
-CMAKE_TOOLCHAIN_FILE="${MINGW_HOME}/build/cmake/${CROSS_COMPILE_TRIPLET}.cmake"
+CMAKE_TOOLCHAIN_FILE="${MINGW_HOME}/build/cmake/clang/${CROSS_COMPILE_TRIPLET}.cmake"
 
-CC="${MINGW_HOME}/bin/${CROSS_COMPILE_TRIPLET}-msvcrt-gcc"
-CXX="${MINGW_HOME}/bin/${CROSS_COMPILE_TRIPLET}-msvcrt-g++"
+CC="${MINGW_HOME}/bin/${CROSS_COMPILE_TRIPLET}-msvcrt-clang"
+CXX="${MINGW_HOME}/bin/${CROSS_COMPILE_TRIPLET}-msvcrt-clang++"
 RC="${MINGW_HOME}/bin/${CROSS_COMPILE_TRIPLET}-windres"
 WINDRES="${MINGW_HOME}/bin/${CROSS_COMPILE_TRIPLET}-windres"
 DLLTOOL="${MINGW_HOME}/bin/${CROSS_COMPILE_TRIPLET}-dlltool"

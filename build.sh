@@ -2,10 +2,8 @@
 
 set -eu
 
-declare -r toolchain_directory='/tmp/mingw-w64'
+declare -r toolchain_directory='/tmp/mingw-gcc-cross'
 declare -r share_directory="${toolchain_directory}/usr/local/share/mingw"
-
-declare -r environment="LD_LIBRARY_PATH=${toolchain_directory}/lib PATH=${PATH}:${toolchain_directory}/bin"
 
 declare -r workdir="${PWD}"
 
@@ -43,6 +41,9 @@ declare -r yasm_directory='/tmp/yasm-1.3.0'
 declare -r ninja_tarball='/tmp/ninja.tar.gz'
 declare -r ninja_directory='/tmp/ninja-1.12.1'
 
+declare -r nz_directory="${workdir}/submodules/nz"
+declare -r nz_prefix='/tmp/nz'
+
 declare -r max_jobs='30'
 
 declare -r ccflags='-w -O2'
@@ -50,9 +51,47 @@ declare -r linkflags='-Xlinker -s'
 
 declare -ra targets=(
 	# 'aarch64-w64-mingw32'
-	'x86_64-w64-mingw32'
-	'i686-w64-mingw32'
+	'x86_64-w64-mingw32-msvcrt'
+	'x86_64-w64-mingw32-ucrt'
+	'i686-w64-mingw32-msvcrt'
+	'i686-w64-mingw32-ucrt'
 )
+
+declare -ra symlink_tools=(
+	'addr2line'
+	'ar'
+	'as'
+	'c++filt'
+	'cpp'
+	'dlltool'
+	'dllwrap'
+	'elfedit'
+	'dwp'
+	'gcc-ar'
+	'gcc-nm'
+	'gcc-ranlib'
+	'gcov'
+	'gcov-dump'
+	'gcov-tool'
+	'gprof'
+	'ld'
+	'ld.bfd'
+	'ld.gold'
+	'lto-dump'
+	'nm'
+	'objcopy'
+	'objdump'
+	'ranlib'
+	'readelf'
+	'size'
+	'strings'
+	'strip'
+	'windmc'
+	'windres'
+)
+
+declare -r gcc_wrapper='/tmp/gcc-wrapper'
+declare -r clang_wrapper='/tmp/clang-wrapper'
 
 declare -r PKG_CONFIG_PATH="${toolchain_directory}/lib/pkgconfig"
 declare -r PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}"
@@ -502,6 +541,25 @@ cmake \
 cmake --build "${PWD}"
 cmake --install "${PWD}" --strip
 
+[ -d "${nz_directory}/build" ] || mkdir "${nz_directory}/build"
+
+cd "${nz_directory}/build"
+rm --force --recursive ./*
+
+cmake \
+	-S "${nz_directory}" \
+	-B "${PWD}" \
+	-DCMAKE_C_FLAGS="${ccflags}" \
+	-DCMAKE_CXX_FLAGS="${ccflags}" \
+	-DCMAKE_INSTALL_PREFIX="${nz_prefix}"
+
+cmake --build "${PWD}" -- --jobs='1'
+cmake --install "${PWD}" --strip
+
+mkdir --parent "${toolchain_directory}/lib/nouzen"
+mv "${nz_prefix}/lib/"* "${toolchain_directory}/lib/nouzen"
+rmdir "${nz_prefix}/lib"
+
 [ -d "${ninja_directory}/build" ] || mkdir "${ninja_directory}/build"
 
 cd "${ninja_directory}/build"
@@ -539,10 +597,49 @@ if [[ "${CROSS_COMPILE_TRIPLET}" = *'-haiku' ]]; then
 	export ac_cv_c_bigendian='no'
 fi
 
+declare cc='gcc'
+declare readelf='readelf'
+declare strip='strip'
+
+if ! (( is_native )); then
+	cc="${CC}"
+	readelf="${READELF}"
+	strip="${STRIP}"
+fi
+
+sed \
+	--in-place \
+	--regexp-extended \
+	"s/(GCC_MAJOR_VERSION\[\] = )\"[0-9]+\"/\1\"${gcc_major}\"/g" \
+	"${workdir}/submodules/obggcc/tools/gcc-wrapper/gcc.c" \
+
+make \
+	-C "${workdir}/submodules/obggcc/tools/gcc-wrapper" \
+	PREFIX="$(dirname "${gcc_wrapper}")" \
+	FLAVOR='MINGW' \
+	CFLAGS="-D WCLANG ${ccflags}" \
+	CXXFLAGS="${ccflags}" \
+	LDFLAGS="${linkflags}"  \
+	gcc
+
+cp "${gcc_wrapper}" "${clang_wrapper}"
+
+make \
+	-C "${workdir}/submodules/obggcc/tools/gcc-wrapper" \
+	PREFIX="$(dirname "${gcc_wrapper}")" \
+	FLAVOR='MINGW' \
+	CFLAGS="${ccflags}" \
+	CXXFLAGS="${ccflags}" \
+	LDFLAGS="${linkflags}"  \
+	all
+
 for triplet in "${targets[@]}"; do
 	declare extra_configure_flags=''
 	
 	declare specs='%{!Qy: -Qn}'
+	
+	declare target="${triplet/-msvcrt/}"
+	target="${target/-ucrt/}"
 	
 	if ! (( is_native )); then
 		extra_configure_flags+=" --with-cross-host=${CROSS_COMPILE_TRIPLET}"
@@ -560,7 +657,7 @@ for triplet in "${targets[@]}"; do
 	
 	../configure \
 		--host="${CROSS_COMPILE_TRIPLET}" \
-		--target="${triplet}" \
+		--target="${target}" \
 		--prefix="${toolchain_directory}" \
 		--disable-gold \
 		--enable-ld \
@@ -580,9 +677,16 @@ for triplet in "${targets[@]}"; do
 	make all --jobs="${max_jobs}"
 	make install
 	
+	if ! (( is_native )); then
+		for executable in "${toolchain_directory}/${target}/bin/"*; do
+			unlink "${executable}"
+			cp '/tmp/binutils-gnu-wrapper' "${executable}"
+		done
+	fi
+	
 	cd "$(mktemp --directory)"
 	
-	declare sysroot_url="https://github.com/AmanoTeam/mingw64-sysroot/releases/latest/download/${triplet}.tar.xz"
+	declare sysroot_url="https://github.com/AmanoTeam/MinGW-w64/releases/download/sysroot/${triplet}.tar.xz"
 	declare sysroot_file="${PWD}/${triplet}.tar.xz"
 	declare sysroot_directory="${PWD}/${triplet}"
 	
@@ -609,9 +713,20 @@ for triplet in "${targets[@]}"; do
 	
 	rm --force --recursive ./*
 	
+	mv \
+		"${toolchain_directory}/${target}/bin" \
+		"${toolchain_directory}/${triplet}"
+	
+	rm --force --recursive "${toolchain_directory}/${target}"
+	
+	ln \
+		--symbolic \
+		"${toolchain_directory}/${triplet}" \
+		"${toolchain_directory}/${target}"
+	
 	../configure \
 		--host="${CROSS_COMPILE_TRIPLET}" \
-		--target="${triplet}" \
+		--target="${target}" \
 		--prefix="${toolchain_directory}" \
 		--with-gmp="${toolchain_directory}" \
 		--with-mpc="${toolchain_directory}" \
@@ -646,19 +761,16 @@ for triplet in "${targets[@]}"; do
 		--enable-host-shared \
 		--enable-libgomp \
 		--enable-fixincludes \
+		--enable-libstdcxx-verbose \
 		--with-specs="${specs}" \
 		--with-pic \
 		--with-gnu-as \
 		--with-gnu-ld \
 		--disable-tls \
 		--disable-canonical-system-headers \
-		--disable-libstdcxx-verbose \
 		--disable-symvers \
 		--disable-gnu-unique-object \
 		--disable-gnu-indirect-function \
-		--disable-libsanitizer \
-		--disable-libstdcxx-pch \
-		--disable-bootstrap \
 		--disable-multilib \
 		--disable-win32-utf8-manifest \
 		--without-static-standard-libraries \
@@ -667,41 +779,141 @@ for triplet in "${targets[@]}"; do
 		CXXFLAGS="-fPIC ${ccflags}" \
 		LDFLAGS="-L${toolchain_directory}/lib ${linkflags}"
 	
-	declare args=''
+	declare environment=''
 	
 	if (( is_native )); then
-		args+="${environment}"
+		environment+="LD_LIBRARY_PATH=${toolchain_directory}/lib PATH=${PATH}:${toolchain_directory}/bin"
 	fi
 	
-	env ${args} make \
-		CFLAGS_FOR_TARGET="${ccflags} ${linkflags}" \
-		CXXFLAGS_FOR_TARGET="${ccflags} ${linkflags}" \
-		LDFLAGS_FOR_TARGET="${linkflags}" \
-		gcc_cv_objdump="${CROSS_COMPILE_TRIPLET}-objdump" \
+	if ! (( is_native )); then
+		printf "exec '%s' \"\${@}\"\n" "${triplet}-gcc" > "/tmp/${target}-gcc"
+		chmod +x "/tmp/${target}-gcc"
+		
+		printf "exec '%s' \"\${@}\"\n" "${triplet}-g++" > "/tmp/${target}-g++"
+		chmod +x "/tmp/${target}-g++"
+	fi
+	
+	env ${environment} make \
 		all --jobs="${max_jobs}"
 	make install
 	
-	echo >> "${toolchain_directory}/${triplet}/include/c++/${gcc_major}/${triplet}/bits/c++config.h"
-	cat "${workdir}/patches/c++config.h" >> "${toolchain_directory}/${triplet}/include/c++/${gcc_major}/${triplet}/bits/c++config.h"
+	echo >> "${toolchain_directory}/${triplet}/include/c++/${gcc_major}/${target}/bits/c++config.h"
+	cat "${workdir}/patches/c++config.h" >> "${toolchain_directory}/${triplet}/include/c++/${gcc_major}/${target}/bits/c++config.h"
 	
-	rm "${toolchain_directory}/bin/${triplet}-${triplet}-"* || true
+	declare gcc_include_dir="${toolchain_directory}/lib/gcc/${target}/${gcc_major}/include"
+	declare clang_include_dir="${gcc_include_dir}/clang"
 	
-	cd "${toolchain_directory}/${triplet}/lib64" 2>/dev/null || cd "${toolchain_directory}/${triplet}/lib"
-	
-	if [[ "$(basename "${PWD}")" = 'lib64' ]]; then
-		mv './'* '../lib' || true
-		rmdir "${PWD}"
-		cd '../lib'
+	if ! [ -d "${clang_include_dir}" ]; then
+		mkdir "${clang_include_dir}"
+		
+		ln \
+			--symbolic \
+			--relative \
+			"${gcc_include_dir}/"*'.h' \
+			"${clang_include_dir}"
+		
+		rm \
+			--force \
+			"${clang_include_dir}/"*'intrin'*'.h' \
+			"${clang_include_dir}/arm"*'.h' \
+			"${clang_include_dir}/"*'3dnow'*'.h' \
+			"${clang_include_dir}/stdatomic.h"
 	fi
 	
-	[ -f './libiberty.a' ] && unlink './libiberty.a'
+	rm --force './libiberty.a'
 	
 	ln \
 		--symbolic \
 		--relative \
 		--force \
-		"${toolchain_directory}/libexec/gcc/${triplet}/${gcc_major}/liblto_plugin.so" \
+		"${toolchain_directory}/libexec/gcc/${target}/${gcc_major}/liblto_plugin.so" \
 		"${toolchain_directory}/lib/bfd-plugins"
+	
+	mv \
+		"${toolchain_directory}/lib/gcc/${target}/${gcc_major}/"*'.'{a,o} \
+		"${toolchain_directory}/${triplet}/lib"
+	
+	rm --force --recursive "${toolchain_directory}/${target}"
+	
+	if [ "${triplet}" != 'i686-w64-mingw32-ucrt' ]; then
+		mkdir "${toolchain_directory}/${triplet}/lib/nouzen"
+		
+		cp \
+			--recursive "${nz_prefix}/"* \
+			"${toolchain_directory}/${triplet}/lib/nouzen"
+		
+		mkdir \
+			--parent \
+			"${toolchain_directory}/${triplet}/lib/nouzen/lib"
+		
+		ln \
+			--symbolic \
+			--relative \
+			"${toolchain_directory}/lib/nouzen/lib"* \
+			"${toolchain_directory}/${triplet}/lib/nouzen/lib"
+		
+		mkdir \
+			--parent \
+			"${toolchain_directory}/${triplet}/lib/nouzen/etc/nouzen/sources.list"
+		
+		cp \
+			"${workdir}/tools/repositories/${triplet}/"*'.conf' \
+			"${toolchain_directory}/${triplet}/lib/nouzen/etc/nouzen/sources.list"
+		
+		declare directory=''
+		
+		if [ "${triplet}" = 'i686-w64-mingw32-msvcrt' ]; then
+			directory='mingw32'
+		elif [ "${triplet}" = 'x86_64-w64-mingw32-msvcrt' ]; then
+			directory='mingw64'
+		elif [ "${triplet}" = 'x86_64-w64-mingw32-ucrt' ]; then
+			directory='ucrt64'
+		fi
+		
+		echo "symlink-prefix = ${directory}" > "${toolchain_directory}/${triplet}/lib/nouzen/etc/nouzen/options.conf"
+		
+		ln \
+			--symbolic \
+			--relative \
+			--force \
+			"${toolchain_directory}/${triplet}/lib/nouzen/bin/"* \
+			"${toolchain_directory}/${triplet}/bin"
+		
+		ln \
+			--symbolic \
+			--relative \
+			"${toolchain_directory}/${triplet}/bin/nz" \
+			"${toolchain_directory}/bin/${triplet}-nz"
+		
+		ln \
+			--symbolic \
+			--relative \
+			"${toolchain_directory}/${triplet}/bin/apt" \
+			"${toolchain_directory}/bin/${triplet}-apt"
+		
+		ln \
+			--symbolic \
+			--relative \
+			"${toolchain_directory}/${triplet}/bin/apt-get" \
+			"${toolchain_directory}/bin/${triplet}-apt-get"
+	fi
+	
+	for name in "${symlink_tools[@]}"; do
+		source="${toolchain_directory}/bin/${target}-${name}"
+		destination="${toolchain_directory}/bin/${triplet}-${name}"
+		
+		if ! [ -f "${source}" ]; then
+			continue
+		fi
+		
+		echo "- Symlinking '${source}' to '${destination}'"
+		
+		ln \
+			--symbolic \
+			--relative \
+			"${source}" \
+			"${destination}"
+	done
 done
 
 # Delete libtool files and other unnecessary files GCC installs
@@ -791,3 +1003,48 @@ ln \
 	--relative \
 	"${share_directory}/"* \
 	"${toolchain_directory}/build"
+
+mkdir "${toolchain_directory}/include"
+
+for triplet in "${targets[@]}"; do
+	cp \
+		--recursive \
+		"${toolchain_directory}/${triplet}/include" \
+		"${toolchain_directory}"
+	
+	rm \
+		--force \
+		--recursive \
+		"${toolchain_directory}/${triplet}/include"
+	
+	ln \
+		--symbolic \
+		--relative \
+		"${toolchain_directory}/include" \
+		"${toolchain_directory}/${triplet}"
+	
+	cp "${gcc_wrapper}" "${toolchain_directory}/bin/${triplet}-gcc"
+	cp "${gcc_wrapper}" "${toolchain_directory}/bin/${triplet}-g++"
+	cp "${clang_wrapper}" "${toolchain_directory}/bin/${triplet}-clang"
+	cp "${clang_wrapper}" "${toolchain_directory}/bin/${triplet}-clang++"
+done
+
+for directory in "${toolchain_directory}/include/c++/${gcc_major}/"*'-w64-'*; do
+	patch --directory="${directory}" --strip='1' --input="${workdir}/patches/0001-Unify-bits-c-config.h-for-MSVCRT-and-UCRT.patch" || true
+done
+
+ln \
+	--symbolic \
+	--relative \
+	--force \
+	"${toolchain_directory}/x86_64-w64-mingw32-msvcrt" \
+	"${toolchain_directory}/x86_64-w64-mingw32"
+
+ln \
+	--symbolic \
+	--relative \
+	--force \
+	"${toolchain_directory}/i686-w64-mingw32-msvcrt" \
+	"${toolchain_directory}/i686-w64-mingw32"
+
+cp '/tmp/soversion-remove' "${toolchain_directory}/bin"
