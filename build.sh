@@ -50,10 +50,10 @@ declare -r linkflags='-Xlinker -s'
 
 declare -ra targets=(
 	# 'aarch64-w64-mingw32'
-	'x86_64-w64-mingw32-ucrt'
-	'x86_64-w64-mingw32-msvcrt'
-	'i686-w64-mingw32-ucrt'
-	'i686-w64-mingw32-msvcrt'
+	'x86_64-w64-mingw32ucrt'
+	'x86_64-w64-mingw32msvcrt'
+	'i686-w64-mingw32ucrt'
+	'i686-w64-mingw32msvcrt'
 )
 
 declare -r PKG_CONFIG_PATH="${toolchain_directory}/lib/pkgconfig"
@@ -558,8 +558,6 @@ for triplet in "${targets[@]}"; do
 		extra_configure_flags+=' --enable-host-bind-now'
 	fi
 	
-	rm --force --recursive "${toolchain_directory}/${target}"
-	
 	[ -d "${binutils_directory}/build" ] || mkdir "${binutils_directory}/build"
 	
 	cd "${binutils_directory}/build"
@@ -718,6 +716,8 @@ for triplet in "${targets[@]}"; do
 	mv \
 		"${toolchain_directory}/lib/gcc/${target}/${gcc_major}/"*'.'{a,o} \
 		"${toolchain_directory}/${triplet}/lib"
+	
+	rm --force --recursive "${toolchain_directory}/${target}"
 done
 
 # Delete libtool files and other unnecessary files GCC installs
