@@ -1,4 +1,4 @@
-name: Build
+name: System roots
 
 on:
   schedule:
@@ -41,12 +41,12 @@ jobs:
         curl --connect-timeout '10' --retry '15' --retry-all-errors --fail --silent --location --url "${MINGW_URL}" --output "${MINGW_TARBALL}"
         tar --directory="$(dirname "${MINGW_TARBALL}")" --extract --file="${MINGW_TARBALL}"
         
-        export MINGW_HOME='/tmp/mingw-w64'
+        export MINGW_HOME='/tmp/mingw-gcc-cross'
         export PATH="${MINGW_HOME}/bin:${PATH}"
         
         export CMAKE_TOOLCHAIN_FILE="${MINGW_HOME}/usr/local/share/mingw/cmake/${{ matrix.target }}.cmake"
         
-        source "${MINGW_HOME}/usr/local/share/mingw/autotools/${{ matrix.target }}.sh"
+        source "${MINGW_HOME}/build/autotools/${{ matrix.target }}.sh"
         
         bash './sysroot.sh'
     - name: Create release
